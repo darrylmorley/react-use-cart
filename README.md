@@ -1,5 +1,5 @@
 <h1 align="center">
-  react-use-cart
+  my-react-use-cart
 </h1>
 <p align="center">
 🛒 A lightweight shopping cart hook for React, Next.js, and Gatsby
@@ -56,19 +56,19 @@ function Page() {
       id: 1,
       name: "Malm",
       price: 9900,
-      quantity: 1
+      quantity: 1,
     },
     {
       id: 2,
       name: "Nordli",
       price: 16500,
-      quantity: 5
+      quantity: 5,
     },
     {
       id: 3,
       name: "Kullen",
       price: 4500,
-      quantity: 1
+      quantity: 1,
     },
   ];
 
@@ -84,13 +84,8 @@ function Page() {
 }
 
 function Cart() {
-  const {
-    isEmpty,
-    totalUniqueItems,
-    items,
-    updateItemQuantity,
-    removeItem,
-  } = useCart();
+  const { isEmpty, totalUniqueItems, items, updateItemQuantity, removeItem } =
+    useCart();
 
   if (isEmpty) return <p>Your cart is empty</p>;
 
@@ -164,9 +159,10 @@ ReactDOM.render(
 | `onItemAdd`    | _No_     | Triggered on items added to your cart, unless the item already exists, then `onItemUpdate` will be invoked.                                                |
 | `onItemUpdate` | _No_     | Triggered on items updated in your cart, unless you are setting the quantity to `0`, then `onItemRemove` will be invoked.                                  |
 | `onItemRemove` | _No_     | Triggered on items removed from your cart.                                                                                                                 |
-| `onEmptyCart` | _No_     | Triggered on empty cart.                                                                                                                 |
+| `onEmptyCart`  | _No_     | Triggered on empty cart.                                                                                                                                   |
 | `storage`      | _No_     | Must return `[getter, setter]`.                                                                                                                            |
 | `metadata`     | _No_     | Custom global state on the cart. Stored inside of `metadata`.                                                                                              |
+
 ## `useCart`
 
 The `useCart` hook exposes all the getter/setters for your cart state.
@@ -174,7 +170,6 @@ The `useCart` hook exposes all the getter/setters for your cart state.
 ### `setItems(items)`
 
 The `setItems` method should be used to set all items in the cart. This will overwrite any existing cart items. A `quantity` default of 1 will be set for an item implicitly if no `quantity` is specified.
-
 
 #### Args
 

@@ -1,13 +1,13 @@
 {
-  "name": "react-use-cart",
+  "name": "my-react-use-cart",
   "version": "0.0.0-semantic-release",
-  "description": "React hook library for managing cart state.",
-  "author": "Jamie Barton <jamie@notrab.dev> (https://twitter.com/notrab)",
+  "description": "Modified React hook library for managing cart state.",
+  "author": "Darryl Morley / Jamie Barton <jamie@notrab.dev> (https://twitter.com/notrab)",
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "module": "dist/react-use-cart.esm.js",
-  "repository": "notrab/react-use-cart",
+  "repository": "darrylmorley/react-use-cart",
   "files": [
     "dist",
     "src"
