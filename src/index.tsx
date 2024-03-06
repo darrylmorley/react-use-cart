@@ -2,12 +2,18 @@ import * as React from "react";
 
 import useLocalStorage from "./useLocalStorage";
 
+enum ItemType {
+  "product",
+  "shipping",
+}
+
 export interface Item {
   id: string;
   price: number;
   quantity?: number;
   itemTotal?: number;
   [key: string]: any;
+  type: ItemType;
 }
 
 export interface InitialState {
@@ -16,6 +22,8 @@ export interface InitialState {
   isEmpty: boolean;
   totalItems: number;
   totalUniqueItems: number;
+  subTotal: number;
+  shippingTotal: number;
   cartTotal: number;
   metadata?: Metadata;
 }
@@ -43,10 +51,10 @@ export type Actions =
   | { type: "ADD_ITEM"; payload: Item }
   | { type: "REMOVE_ITEM"; id: Item["id"] }
   | {
-      type: "UPDATE_ITEM";
-      id: Item["id"];
-      payload: object;
-    }
+    type: "UPDATE_ITEM";
+    id: Item["id"];
+    payload: object;
+  }
   | { type: "EMPTY_CART" }
   | { type: "CLEAR_CART_META" }
   | { type: "SET_CART_META"; payload: Metadata }
@@ -57,6 +65,8 @@ export const initialState: any = {
   isEmpty: true,
   totalItems: 0,
   totalUniqueItems: 0,
+  subTotal: 0,
+  shippingTotal: 0,
   cartTotal: 0,
   metadata: {},
 };
@@ -147,7 +157,9 @@ const generateCartState = (state = initialState, items: Item[]) => {
     items: calculateItemTotals(items),
     totalItems: calculateTotalItems(items),
     totalUniqueItems,
+    subTotal: calculateSubTotal(items),
     cartTotal: calculateTotal(items),
+    shippingTotal: calculateShippingTotal(items),
     isEmpty,
   };
 };
@@ -157,6 +169,18 @@ const calculateItemTotals = (items: Item[]) =>
     ...item,
     itemTotal: item.price * item.quantity!,
   }));
+
+const calculateShippingTotal = (items: Item[]) => {
+  // find shipping item type and return the price
+  const shippingItem = items.find(item => item.type === ItemType.shipping);
+  return shippingItem ? shippingItem.price : 0;
+}
+
+// subtotal in this instance is the total of all items in the cart minus shipping
+// calculate total minus shipping item type
+const calculateSubTotal = (items: Item[]) =>
+  items.filter(item => item.type !== ItemType.shipping).reduce((total, item) => total + item.quantity! * item.price, 0);
+
 
 const calculateTotal = (items: Item[]) =>
   items.reduce((total, item) => total + item.quantity! * item.price, 0);
@@ -192,160 +216,165 @@ export const CartProvider: React.FC<{
   storage = useLocalStorage,
   metadata,
 }) => {
-  const id = cartId ? cartId : createCartIdentifier();
+    const id = cartId ? cartId : createCartIdentifier();
 
-  const [savedCart, saveCart] = storage(
-    cartId ? `react-use-cart-${id}` : `react-use-cart`,
-    JSON.stringify({
-      id,
-      ...initialState,
-      items: defaultItems,
-      metadata,
-    })
-  );
+    const [savedCart, saveCart] = storage(
+      cartId ? `react-use-cart-${id}` : `react-use-cart`,
+      JSON.stringify({
+        id,
+        ...initialState,
+        items: defaultItems,
+        metadata,
+      })
+    );
 
-  const [state, dispatch] = React.useReducer(reducer, JSON.parse(savedCart));
-  React.useEffect(() => {
-    saveCart(JSON.stringify(state));
-  }, [state, saveCart]);
+    const [state, dispatch] = React.useReducer(reducer, JSON.parse(savedCart));
+    React.useEffect(() => {
+      saveCart(JSON.stringify(state));
+    }, [state, saveCart]);
 
-  const setItems = (items: Item[]) => {
-    dispatch({
-      type: "SET_ITEMS",
-      payload: items.map(item => ({
-        ...item,
-        quantity: item.quantity || 1,
-      })),
-    });
+    const setItems = (items: Item[]) => {
+      dispatch({
+        type: "SET_ITEMS",
+        payload: items.map(item => ({
+          ...item,
+          quantity: item.quantity || 1,
+        })),
+      });
 
-    onSetItems && onSetItems(items);
-  };
+      onSetItems && onSetItems(items);
+    };
 
-  const addItem = (item: Item, quantity = 1) => {
-    if (!item.id) throw new Error("You must provide an `id` for items");
-    if (quantity <= 0) return;
+    const addItem = (item: Item, quantity = 1, type = ItemType.product) => {
+      if (!item.id) throw new Error("You must provide an `id` for items");
+      // if (state.items) contains an item with type shipping and the new item is also of type shipping return a new Error, shipping is already in the cart
+      if (state.items.find((i: Item) => i.type === ItemType.shipping) && item.type === ItemType.shipping) throw new Error("Shipping item is already in the cart");
+      if (quantity <= 0) return;
 
-    const currentItem = state.items.find((i: Item) => i.id === item.id);
+      const currentItem = state.items.find((i: Item) => i.id === item.id);
 
-    if (!currentItem && !item.hasOwnProperty("price"))
-      throw new Error("You must pass a `price` for new items");
+      if (!currentItem && !item.hasOwnProperty("price"))
+        throw new Error("You must pass a `price` for new items");
 
-    if (!currentItem) {
-      const payload = { ...item, quantity };
+      if (!currentItem) {
+        const payload = { ...item, quantity };
 
-      dispatch({ type: "ADD_ITEM", payload });
+        dispatch({ type: "ADD_ITEM", payload });
 
-      onItemAdd && onItemAdd(payload);
+        onItemAdd && onItemAdd(payload);
 
-      return;
-    }
+        return;
+      }
 
-    const payload = { ...item, quantity: currentItem.quantity + quantity };
+      const payload = { ...item, quantity: currentItem.quantity + quantity, type };
 
-    dispatch({
-      type: "UPDATE_ITEM",
-      id: item.id,
-      payload,
-    });
+      dispatch({
+        type: "UPDATE_ITEM",
+        id: item.id,
+        payload,
+      });
 
-    onItemUpdate && onItemUpdate(payload);
-  };
+      onItemUpdate && onItemUpdate(payload);
+    };
 
-  const updateItem = (id: Item["id"], payload: object) => {
-    if (!id || !payload) {
-      return;
-    }
+    const updateItem = (id: Item["id"], payload: object) => {
+      if (!id || !payload) {
+        return;
+      }
 
-    dispatch({ type: "UPDATE_ITEM", id, payload });
+      dispatch({ type: "UPDATE_ITEM", id, payload });
 
-    onItemUpdate && onItemUpdate(payload);
-  };
+      onItemUpdate && onItemUpdate(payload);
+    };
 
-  const updateItemQuantity = (id: Item["id"], quantity: number) => {
-    if (quantity <= 0) {
-      onItemRemove && onItemRemove(id);
+    const updateItemQuantity = (id: Item["id"], quantity: number) => {
+      // if item type is shipping only one shipping item can be in the cart
+      if (state.items.some((i: Item) => i.type === ItemType.shipping) && getItem(id).type === ItemType.shipping) throw new Error("Shipping item is already in the cart");
+
+      if (quantity <= 0) {
+        onItemRemove && onItemRemove(id);
+
+        dispatch({ type: "REMOVE_ITEM", id });
+
+        return;
+      }
+
+      const currentItem = state.items.find((item: Item) => item.id === id);
+
+      if (!currentItem) throw new Error("No such item to update");
+
+      const payload = { ...currentItem, quantity };
+
+      dispatch({
+        type: "UPDATE_ITEM",
+        id,
+        payload,
+      });
+
+      onItemUpdate && onItemUpdate(payload);
+    };
+
+    const removeItem = (id: Item["id"]) => {
+      if (!id) return;
 
       dispatch({ type: "REMOVE_ITEM", id });
 
-      return;
+      onItemRemove && onItemRemove(id);
+    };
+
+    const emptyCart = () => {
+      dispatch({ type: "EMPTY_CART" });
+
+      onEmptyCart && onEmptyCart();
     }
 
-    const currentItem = state.items.find((item: Item) => item.id === id);
+    const getItem = (id: Item["id"]) =>
+      state.items.find((i: Item) => i.id === id);
 
-    if (!currentItem) throw new Error("No such item to update");
+    const inCart = (id: Item["id"]) => state.items.some((i: Item) => i.id === id);
 
-    const payload = { ...currentItem, quantity };
+    const clearCartMetadata = () => {
+      dispatch({
+        type: "CLEAR_CART_META",
+      });
+    };
 
-    dispatch({
-      type: "UPDATE_ITEM",
-      id,
-      payload,
-    });
+    const setCartMetadata = (metadata: Metadata) => {
+      if (!metadata) return;
 
-    onItemUpdate && onItemUpdate(payload);
+      dispatch({
+        type: "SET_CART_META",
+        payload: metadata,
+      });
+    };
+
+    const updateCartMetadata = (metadata: Metadata) => {
+      if (!metadata) return;
+
+      dispatch({
+        type: "UPDATE_CART_META",
+        payload: metadata,
+      });
+    };
+
+    return (
+      <CartContext.Provider
+        value={{
+          ...state,
+          getItem,
+          inCart,
+          setItems,
+          addItem,
+          updateItem,
+          updateItemQuantity,
+          removeItem,
+          emptyCart,
+          clearCartMetadata,
+          setCartMetadata,
+          updateCartMetadata,
+        }}
+      >
+        {children}
+      </CartContext.Provider>
+    );
   };
-
-  const removeItem = (id: Item["id"]) => {
-    if (!id) return;
-
-    dispatch({ type: "REMOVE_ITEM", id });
-
-    onItemRemove && onItemRemove(id);
-  };
-
-  const emptyCart = () => {
-    dispatch({ type: "EMPTY_CART" });
-
-    onEmptyCart && onEmptyCart();
-  }
-
-  const getItem = (id: Item["id"]) =>
-    state.items.find((i: Item) => i.id === id);
-
-  const inCart = (id: Item["id"]) => state.items.some((i: Item) => i.id === id);
-
-  const clearCartMetadata = () => {
-    dispatch({
-      type: "CLEAR_CART_META",
-    });
-  };
-
-  const setCartMetadata = (metadata: Metadata) => {
-    if (!metadata) return;
-
-    dispatch({
-      type: "SET_CART_META",
-      payload: metadata,
-    });
-  };
-
-  const updateCartMetadata = (metadata: Metadata) => {
-    if (!metadata) return;
-
-    dispatch({
-      type: "UPDATE_CART_META",
-      payload: metadata,
-    });
-  };
-
-  return (
-    <CartContext.Provider
-      value={{
-        ...state,
-        getItem,
-        inCart,
-        setItems,
-        addItem,
-        updateItem,
-        updateItemQuantity,
-        removeItem,
-        emptyCart,
-        clearCartMetadata,
-        setCartMetadata,
-        updateCartMetadata,
-      }}
-    >
-      {children}
-    </CartContext.Provider>
-  );
-};
