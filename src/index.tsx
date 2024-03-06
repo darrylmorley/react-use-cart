@@ -289,7 +289,7 @@ export const CartProvider: React.FC<{
 
     const updateItemQuantity = (id: Item["id"], quantity: number) => {
       // if item type is shipping only one shipping item can be in the cart
-      if (state.items.some((i: Item) => i.type === ItemType.shipping) && getItem(id).type === ItemType.shipping) throw new Error("Shipping item is already in the cart");
+      if (state.items.find((i: Item) => i.type === ItemType.shipping)) throw new Error("Shipping item is already in the cart");
 
       if (quantity <= 0) {
         onItemRemove && onItemRemove(id);
